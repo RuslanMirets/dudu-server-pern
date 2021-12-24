@@ -3,8 +3,11 @@ require('dotenv').config();
 const express = require('express');
 const sequlize = require('./db');
 const PORT = process.env.PORT || PORT;
+const cors = require('cors');
 
 const app = express();
+app.use(cors());
+app.use(express.json());
 
 const start = async () => {
   try {
