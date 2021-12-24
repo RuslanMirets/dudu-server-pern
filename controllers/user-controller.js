@@ -1,17 +1,42 @@
 const ApiError = require('../error/ApiError');
+const bcrypt = require('bcrypt');
+const jwt = require('jsonwebtoken');
+const { User } = require('../models/models');
 
+const generateJwt = (id, email, password) => {
+  return jwt.sign({ id, email, password }, process.env.SECRET_KEY, { expiresIn: '24h' });
+};
 class UserController {
-  async registration(req, res) {}
-
-  async login(req, res) {}
-
-  async auth(req, res, next) {
-    const { id } = req.query;
-    if (!id) {
-      return next(ApiError.badRequest('Не задан ID'));
+  async registration(req, res, next) {
+    const { firstName, lastName, email, password, role } = req.body;
+    if (!email || !password) {
+      return next(ApiError.badRequest('Некорректный email или пароль'));
     }
-    res.json(id);
+    const candidate = await User.findOne({ where: { email } });
+    if (candidate) {
+      return next(ApiError.badRequest(`Пользователь с почтовым адресом ${email} уже существует`));
+    }
+    const hashPassword = await bcrypt.hash(password, 5);
+    const user = await User.create({ firstName, lastName, email, password: hashPassword, role });
+    const token = generateJwt(user.id, user.email, user.password);
+    return res.json({ token });
   }
+
+  async login(req, res, next) {
+    const { email, password } = req.body;
+    const user = await User.findOne({ where: { email } });
+    if (!user) {
+      return next(ApiError.internal('Пользователь не найден'));
+    }
+    let comparePassword = bcrypt.compareSync(password, user.password);
+    if (!comparePassword) {
+      return next(ApiError.internal('Указан неверный пароль'));
+    }
+    const token = generateJwt(user.id, user.email, user.password);
+    return res.json({ token });
+  }
+
+  async auth(req, res, next) {}
 }
 
 module.exports = new UserController();
